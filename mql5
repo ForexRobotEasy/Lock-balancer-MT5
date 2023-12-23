@@ -1,0 +1,68 @@
+
+//+------------------------------------------------------------------+
+//|                                              Lock balancer MT5    |
+//|                                    https://forexroboteasy.com    |
+//|                                           Forex Robot Easy Team  |
+//+------------------------------------------------------------------+
+
+// Define input parameters
+input double LockLine = 1.20000; // Initial locking line
+input double StopLoss = 0.01000; // Stop loss value
+
+// Define global variables
+int lockOrderTicket = -1; // Ticket of the lock order
+
+//+------------------------------------------------------------------+
+//| Custom indicator initialization function                         |
+//+------------------------------------------------------------------+
+int OnInit()
+{
+    // Set initial locking line as a pending order
+    lockOrderTicket = OrderSend(Symbol(), OP_SELLSTOP, LockLine, 0, 0, 0, 0, 'Lock Order', 0, 0, clrRed);
+
+    return(INIT_SUCCEEDED);
+}
+
+//+------------------------------------------------------------------+
+//| Custom indicator deinitialization function                       |
+//+------------------------------------------------------------------+
+void OnDeinit(const int reason)
+{
+    // Close the lock order if it exists
+    if(lockOrderTicket > 0)
+    {
+        OrderClose(lockOrderTicket, OrderLots(), Bid, 0, clrGreen);
+        lockOrderTicket = -1;
+    }
+}
+
+//+------------------------------------------------------------------+
+//| Custom indicator iteration function                              |
+//+------------------------------------------------------------------+
+void OnTick()
+{
+    // Check if lock order is still open
+    if(lockOrderTicket > 0 && OrderSelect(lockOrderTicket, SELECT_BY_TICKET))
+    {
+        // Check if price has moved against the trader
+        if(OrderType() == OP_SELLSTOP && Bid > OrderOpenPrice())
+        {
+            // Close the lock order and open a counter order as stop loss
+            OrderClose(lockOrderTicket, OrderLots(), Ask, 0, clrGreen);
+            OrderSend(Symbol(), OP_SELL, StopLoss, Bid, 0, 0, 0, 'Stop Loss Order', 0, 0, clrRed);
+
+            lockOrderTicket = -1; // Reset lock order ticket
+        }
+    }
+    else
+    {
+        // Check if price has moved in favor of the trader
+        if(Bid > LockLine)
+        {
+            // Close the stop loss order and unlock the position
+            int stopLossTicket = OrderTicket();
+            if(stopLossTicket > 0)
+                OrderClose(stopLossTicket, OrderLots(), Ask, 0, clrGreen);
+        }
+    }
+}
